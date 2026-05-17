@@ -34,6 +34,9 @@ The Dockerfile can be built and tested locally via standard automation commands.
 $ make build
 $ make build RIVET_VERSION=v0.2.0
 
+# Test the Docker Images.
+$ make test
+
 # Run a Rivet Docker Container.
 $ make run
 

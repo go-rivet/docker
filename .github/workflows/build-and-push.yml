@@ -15,12 +15,19 @@ env:
   PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
   REPO_BASE: go-rivet/rivet
 
+permissions: {}
+
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [scratch, alpine]
 
     steps:
       - name: Checkout
@@ -56,21 +63,22 @@ jobs:
           flavor: |
             latest=false
           tags: |
-            type=semver,pattern={{version}},value=${{ steps.resolve.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.resolve.outputs.version }}
-            type=semver,pattern={{major}},value=${{ steps.resolve.outputs.version }}
-            type=raw,value=latest,enable=${{ !contains(steps.resolve.outputs.version, '-') && steps.resolve.outputs.version != 'main' }}
-            type=raw,value=${{ steps.resolve.outputs.version }}
+            type=semver,pattern={{version}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.variant == 'alpine' && '-alpine' || '' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.variant == 'alpine' && '-alpine' || '' }}
+            type=semver,pattern={{major}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.variant == 'alpine' && '-alpine' || '' }}
+            type=raw,value=${{ matrix.variant == 'alpine' && 'latest-alpine' || 'latest' }},enable=${{ !contains(steps.resolve.outputs.version, '-') && steps.resolve.outputs.version != 'main' }}
+            type=raw,value=${{ steps.resolve.outputs.version }}${{ matrix.variant == 'alpine' && '-alpine' || '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ./Dockerfile.${{ matrix.variant }}
           push: true
           platforms: ${{ env.PLATFORMS }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          ache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
           build-args: |
             RIVET_VERSION=${{ steps.resolve.outputs.version }}
