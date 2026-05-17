@@ -1,0 +1,21 @@
+# Extracted Artifacts
+/rivet
+
+# Build and Cache Directories
+.buildx_*
+*.out
+*.test
+*.prof
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+Horizontal_Rules.db
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.env
+.env.local

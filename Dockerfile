@@ -1,0 +1,34 @@
+ARG GO_VERSION=1.25
+
+# Rivet build stage.
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS builder
+RUN apk add --no-cache git
+ARG RIVET_VERSION=main
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+WORKDIR /build
+ENV MODULE_PATH=github.com/go-rivet/rivet/internal/version
+
+RUN git clone --depth 1 --branch ${RIVET_VERSION} https://github.com/go-rivet/rivet.git . 
+
+RUN VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0-dev") && \
+    COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "none") && \
+    BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ") && \
+    \
+    if [ "$TARGETARCH" = "arm" ] && [ "$TARGETVARIANT" = "v7" ]; then export GOARM=7; fi && \
+    \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+        -a \
+        -tags "netgo osusergo" \
+        -ldflags "-s -w -extldflags '-static' \
+                  -X '${MODULE_PATH}.Version=${VERSION}' \
+                  -X '${MODULE_PATH}.CommitSHA=${COMMIT_SHA}' \
+                  -X '${MODULE_PATH}.BuildTime=${BUILD_TIME}'" \
+        -o rivet ./cmd/rivet
+
+# Final stage, deployment as scratch image.
+FROM scratch
+COPY --from=builder /build/rivet /rivet
+ENTRYPOINT ["/rivet"]
