@@ -27,7 +27,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [scratch, alpine]
+        include:
+          - variant: scratch
+            dockerfile: scratch
+            verify: verify
+            target: final
+            suffix: ''
+          - variant: distroless
+            dockerfile: scratch
+            verify: distroless-verify
+            target: distroless
+            suffix: '-distroless'
+          - variant: alpine
+            dockerfile: alpine
+            verify: verify
+            target: final
+            suffix: '-alpine'
 
     steps:
       - name: Checkout
@@ -63,22 +78,34 @@ jobs:
           flavor: |
             latest=false
           tags: |
-            type=semver,pattern={{version}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.variant == 'alpine' && '-alpine' || '' }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.variant == 'alpine' && '-alpine' || '' }}
-            type=semver,pattern={{major}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.variant == 'alpine' && '-alpine' || '' }}
-            type=raw,value=${{ matrix.variant == 'alpine' && 'latest-alpine' || 'latest' }},enable=${{ !contains(steps.resolve.outputs.version, '-') && steps.resolve.outputs.version != 'main' }}
-            type=raw,value=${{ steps.resolve.outputs.version }}${{ matrix.variant == 'alpine' && '-alpine' || '' }}
+            type=semver,pattern={{version}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.suffix }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.suffix }}
+            type=semver,pattern={{major}},value=${{ steps.resolve.outputs.version }},suffix=${{ matrix.suffix }}
+            type=raw,value=latest${{ matrix.suffix }},enable=${{ !contains(steps.resolve.outputs.version, '-') && steps.resolve.outputs.version != 'main' }}
+            type=raw,value=${{ steps.resolve.outputs.version }}${{ matrix.suffix }}
+
+      - name: Verify image on every platform
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.${{ matrix.dockerfile }}
+          target: ${{ matrix.verify }}
+          platforms: ${{ env.PLATFORMS }}
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          build-args: |
+            RIVET_VERSION=${{ steps.resolve.outputs.version }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.${{ matrix.variant }}
+          file: ./Dockerfile.${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           push: true
           platforms: ${{ env.PLATFORMS }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          ache-from: type=gha,scope=${{ matrix.variant }}
+          cache-from: type=gha,scope=${{ matrix.variant }}
           cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
           build-args: |
             RIVET_VERSION=${{ steps.resolve.outputs.version }}

@@ -1,0 +1,12 @@
+version: 42
+tasks:
+  default:
+    cmds:
+      - lua: |
+          assert(2 + 2 == 4)
+          local path = os.tmpname()
+          local file = assert(io.open(path, "w"))
+          assert(file:write("temporary file"))
+          assert(file:close())
+          assert(os.remove(path))
+          print("Lua works")
